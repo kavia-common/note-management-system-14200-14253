@@ -1,0 +1,6 @@
+<Project>
+  <Target Name="PreBuildRestore" BeforeTargets="Build">
+    <Message Text="Ensuring packages are restored before build..." Importance="high" />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Restore" />
+  </Target>
+</Project>

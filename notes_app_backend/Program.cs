@@ -1,10 +1,23 @@
+using Microsoft.AspNetCore.Mvc;
+using NotesAppBackend.Extensions;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddOpenApiDocument();
+// Controllers and JSON options
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        // Return validation problems consistently
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value!.Errors.Select(e => e.ErrorMessage).ToArray());
+            return new BadRequestObjectResult(new { message = "Validation failed", errors });
+        };
+    });
 
-// Add CORS
+// CORS
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
@@ -16,19 +29,35 @@ builder.Services.AddCors(options =>
     });
 });
 
+// Db, repositories, services
+builder.Services.AddAppDb(builder.Configuration, builder.Environment);
+builder.Services.AddRepositories();
+builder.Services.AddAppServices();
+builder.Services.AddJwtAuth(builder.Configuration);
+builder.Services.AddSwaggerWithJwt();
+
 var app = builder.Build();
 
-// Use CORS
 app.UseCors("AllowAll");
 
-// Configure OpenAPI/Swagger
-app.UseOpenApi();
-app.UseSwaggerUi(config =>
+app.UseRouting();
+
+// Auth
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Swagger UI at /docs
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    config.Path = "/docs";
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Notes App API v1");
+    c.RoutePrefix = "docs";
 });
 
-// Health check endpoint
+// Root health check
 app.MapGet("/", () => new { message = "Healthy" });
+
+// Map controllers
+app.MapControllers();
 
 app.Run();
